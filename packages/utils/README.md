@@ -1,5 +1,3 @@
-# Slck
-
 # utils
 
 utils library - Utility functions for common development.
