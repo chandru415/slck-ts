@@ -1,0 +1,24 @@
+{
+  "name": "@slck/utils",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": {
+    "name": "Chandra Sekhar A",
+    "email": "chandru9052@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chandru415/slck-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chandru415/slck-ts/issues"
+  },
+  "homepage": "https://github.com/chandru415/slck-ts",
+  "keywords": [
+    "utils",
+    "functions"
+  ]
+}
