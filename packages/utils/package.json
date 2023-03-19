@@ -20,6 +20,17 @@
   "homepage": "https://github.com/chandru415/slck-ts",
   "keywords": [
     "utils",
-    "functions"
+    "functions",
+    "typescript",
+    "javascript",
+    "angular",
+    "node",
+    "react",
+    "isNullOrUndefined",
+    "isDate",
+    "isObject",
+    "isEmpty",
+    "toCamelCaseKeys",
+    "objectDifferenceByProps"
   ]
 }

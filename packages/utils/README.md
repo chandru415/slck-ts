@@ -7,7 +7,9 @@ utils library - Utility functions for common development.
 ```bash
 npm i @slck/utils --save
 ```
-# Methods 
+
+# Methods
+
     - isNullOrUndefined
     - isDate
     - isObject
@@ -20,3 +22,4 @@ npm i @slck/utils --save
     - objectNonShadowCopy
     - remainingDaysHoursFormTwoDates
     - toCamelCaseKeys
+    - objectDifferenceByProps
