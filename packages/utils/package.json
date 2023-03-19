@@ -2,6 +2,7 @@
   "name": "@slck/utils",
   "version": "1.0.0",
   "type": "commonjs",
+  "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
