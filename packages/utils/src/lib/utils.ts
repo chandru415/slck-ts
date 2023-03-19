@@ -174,12 +174,14 @@ export const isEmptyInDepth = (value?: any): boolean => {
     });
     return keyLength === emptyValues;
   }
-}
+};
 
 export type UnCapitalizeObjectKeys<T> = {
   // eslint-disable-next-line @typescript-eslint/ban-types
-  [key in keyof T as Uncapitalize<key & string>]: T[key] extends Object ? UnCapitalizeObjectKeys<T[key]> : T[key]
-}
+  [key in keyof T as Uncapitalize<key & string>]: T[key] extends Object
+    ? UnCapitalizeObjectKeys<T[key]>
+    : T[key];
+};
 
 /**
  *
@@ -205,4 +207,57 @@ export const camelCaseKeysHelper = <T extends object>(
   ]);
 
   return Object.fromEntries(mappedEntries) as UnCapitalizeObjectKeys<T>;
+};
+
+/** difference between two objects
+ * return an array object with differed property its source object
+ * and its destination object values respectively
+ */
+export const objectDifferenceByProps = (
+  sourceObject: any,
+  destinationObject: any
+): {
+  property: string;
+  destinationValue: object | string | number | Date;
+  sourceValue: object | string | number | Date;
+}[] => {
+  const diffProps: {
+    property: string;
+    destinationValue: object | string | number | Date;
+    sourceValue: object | string | number | Date;
+  }[] = [];
+
+  if (
+    isNullOrUndefinedEmpty(sourceObject) &&
+    isNullOrUndefinedEmpty(destinationObject)
+  ) {
+    return diffProps;
+  }
+
+  for (const prop in sourceObject) {
+    if (
+      // eslint-disable-next-line no-prototype-builtins
+      sourceObject.hasOwnProperty(prop) &&
+      // eslint-disable-next-line no-prototype-builtins
+      destinationObject.hasOwnProperty(prop)
+    ) {
+      switch (typeof sourceObject[prop]) {
+        case 'object':
+          objectDifferenceByProps(sourceObject[prop], destinationObject[prop]);
+          break;
+
+        default:
+          if (sourceObject[prop] !== destinationObject[prop]) {
+            diffProps.push({
+              property: prop,
+              sourceValue: sourceObject[prop],
+              destinationValue: destinationObject[prop],
+            });
+          }
+          break;
+      }
+    }
+  }
+
+  return diffProps;
 };
