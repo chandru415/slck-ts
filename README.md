@@ -25,3 +25,9 @@ npm i @slck/utils --save
     - remainingDaysHoursFormTwoDates
     - toCamelCaseKeys
     - objectDifferenceByProps
+    - genericObjectTypeFn
+
+# Types
+
+    - GenericObjectType
+    - ErrorType

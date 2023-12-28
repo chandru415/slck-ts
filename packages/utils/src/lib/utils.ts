@@ -1,4 +1,5 @@
 import { forIn, isArray } from 'lodash';
+import { GenericObjectType } from './generics';
 
 /**
  * verifies object is null or undefined, if 'yes' return true.
@@ -261,3 +262,8 @@ export const objectDifferenceByProps = (
 
   return diffProps;
 };
+
+export const genericObjectTypeFn = <T extends string, U>(
+  key: T,
+  rValue: U
+): GenericObjectType<T, U> => ({ [key]: rValue } as GenericObjectType<T, U>);
