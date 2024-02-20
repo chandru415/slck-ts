@@ -4,6 +4,7 @@
   "type": "commonjs",
   "license": "MIT",
   "publishConfig": {
+    "registry": "https://www.npmjs.com/package/@slck/utils",
     "access": "public"
   },
   "author": {
