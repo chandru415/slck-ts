@@ -1,12 +1,12 @@
 import { forIn, isArray } from 'lodash';
-import { GenericObjectType } from './generics';
+import { DifferenceByProps, ErrorType, GenericObjectType } from './generics';
 
 /**
- * verifies object is null or undefined, if 'yes' return true.
+ * @description verifies object is null or undefined, if 'yes' return true.
  * @param value type any
  * @returns boolean
  */
-export const isNullOrUndefined = (value: any): boolean => {
+export const isNullOrUndefined = (value: unknown): boolean => {
   return value === null || value === undefined;
 };
 
@@ -15,7 +15,7 @@ export const isNullOrUndefined = (value: any): boolean => {
  * @param value
  * @returns
  */
-export const isDate = (value: any): boolean => {
+export const isDate = (value: Date | string | number): boolean => {
   try {
     return !isNaN(new Date(value).getTime());
   } catch (e) {
@@ -28,7 +28,7 @@ export const isDate = (value: any): boolean => {
  * @param value
  * @returns
  */
-export const isObject = (value: any): boolean => {
+export const isObject = (value: unknown): boolean => {
   return !isNullOrUndefined(value) ? typeof value === 'object' : false;
 };
 
@@ -47,6 +47,10 @@ export const leadZeroForMonthOrDay = (value: number): number | string => {
  * @returns
  */
 export const objectNonShadowCopy = (value: any): any => {
+  return JSON.parse(JSON.stringify(value));
+};
+
+export const objectNonShadowCopy = <T>(value: any): T => {
   return JSON.parse(JSON.stringify(value));
 };
 
@@ -123,7 +127,7 @@ export const remainingDaysHoursFormSeconds = (
  * @param value type any
  * @returns boolean
  */
-export const isEmpty = (value: any): boolean => {
+export const isEmpty = (value: string | object[]): boolean => {
   // we don't check for string here so it also works with arrays
   return value == null || value.length === 0;
 };
@@ -147,7 +151,7 @@ export const isNullOrUndefinedEmpty = (value: any): boolean => {
  * @param value type any
  * @returns boolean
  */
-export const isEmptyInDepth = (value?: any): boolean => {
+export const isEmptyInDepth = <T>(value: T): boolean => {
   if (isNullOrUndefined(value)) {
     return true;
   } else {
@@ -178,7 +182,6 @@ export const isEmptyInDepth = (value?: any): boolean => {
 };
 
 export type UnCapitalizeObjectKeys<T> = {
-  // eslint-disable-next-line @typescript-eslint/ban-types
   [key in keyof T as Uncapitalize<key & string>]: T[key] extends Object
     ? UnCapitalizeObjectKeys<T[key]>
     : T[key];
@@ -214,56 +217,110 @@ export const camelCaseKeysHelper = <T extends object>(
  * return an array object with differed property its source object
  * and its destination object values respectively
  */
-export const objectDifferenceByProps = (
-  sourceObject: any,
-  destinationObject: any
-): {
-  property: string;
-  destinationValue: object | string | number | Date;
-  sourceValue: object | string | number | Date;
-}[] => {
-  const diffProps: {
+export const objectDifferenceByProps = <T extends object>(
+  sourceObject: T | null,
+  destinationObject: T | null
+): DifferenceByProps<T> => {
+  const differenceProps: {
     property: string;
-    destinationValue: object | string | number | Date;
-    sourceValue: object | string | number | Date;
+    destinationValue: T[keyof T];
+    sourceValue: T[keyof T];
   }[] = [];
 
-  if (
-    isNullOrUndefinedEmpty(sourceObject) &&
-    isNullOrUndefinedEmpty(destinationObject)
-  ) {
-    return diffProps;
+  if (isNullOrUndefined(sourceObject) || isNullOrUndefined(destinationObject)) {
+    return {
+      status: false,
+      differenceProps,
+      error: `source or destination is null `,
+    };
   }
 
-  for (const prop in sourceObject) {
-    if (
-      // eslint-disable-next-line no-prototype-builtins
-      sourceObject.hasOwnProperty(prop) &&
-      // eslint-disable-next-line no-prototype-builtins
-      destinationObject.hasOwnProperty(prop)
-    ) {
-      switch (typeof sourceObject[prop]) {
-        case 'object':
-          objectDifferenceByProps(sourceObject[prop], destinationObject[prop]);
-          break;
+  if (
+    Object.keys(sourceObject!).length !== Object.keys(destinationObject!).length
+  ) {
+    return {
+      differenceProps,
+      status: false,
+      error: `object props length not matched`,
+    };
+  }
 
-        default:
-          if (sourceObject[prop] !== destinationObject[prop]) {
-            diffProps.push({
-              property: prop,
-              sourceValue: sourceObject[prop],
-              destinationValue: destinationObject[prop],
-            });
-          }
-          break;
+  if (
+    !isNullOrUndefined(sourceObject) &&
+    !isNullOrUndefined(destinationObject)
+  ) {
+    for (const prop in sourceObject) {
+      if (prop in sourceObject && prop in destinationObject!) {
+        switch (typeof sourceObject[prop]) {
+          case 'object':
+            objectDifferenceByProps(
+              sourceObject[prop],
+              destinationObject![prop] as object
+            );
+
+            break;
+
+          default:
+            if (sourceObject[prop] !== destinationObject![prop]) {
+              differenceProps.push({
+                property: prop,
+                sourceValue: sourceObject[prop],
+                destinationValue: destinationObject![prop],
+              });
+            }
+            break;
+        }
       }
     }
   }
 
-  return diffProps;
+  return {
+    status: true,
+    differenceProps,
+    error: ``,
+  };
 };
 
 export const genericObjectTypeFn = <T extends string, U>(
-  key: T,
+  key: T,uynii
   rValue: U
 ): GenericObjectType<T, U> => ({ [key]: rValue } as GenericObjectType<T, U>);
+
+/**
+ * @description
+ * @param arr1
+ * @param arr2
+ * @returns
+ */
+export const compareObjectArraysWithTypeSafe = <T extends object[]>(
+  arr1: T[],
+  arr2: T[]
+): { status: boolean; error: ErrorType } => {
+  if (arr1.length !== arr2.length) {
+    return { status: false, error: `arg array length not matched` };
+  }
+
+  for (let i = 0; i < arr1.length; i++) {
+    const obj1 = arr1[i];
+    const obj2 = arr2[i];
+
+    if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+      return { status: false, error: `object props length not matched` };
+    }
+
+    for (const key in obj1) {
+      if (!(key in obj2)) {
+        return {
+          status: false,
+          error: `object key does not exits in compared array object`,
+        };
+      }
+
+      if (typeof obj1[key] !== typeof obj2[key]) {
+        return { status: false, error: `object type does not matched` };
+      }
+      return { status: false, error: null };
+    }
+  }
+  return { status: false, error: null };
+};
