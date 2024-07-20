@@ -1,5 +1,5 @@
 import { forIn, isArray } from 'lodash';
-import { GenericObjectType } from './generics';
+import { ErrorType, GenericObjectType } from './generics';
 
 /**
  * verifies object is null or undefined, if 'yes' return true.
@@ -139,7 +139,7 @@ export const hasValidLength = (value: any): boolean => {
  * @returns boolean
  */
 export const isNullOrUndefinedEmpty = (value: any): boolean => {
-  return isNullOrUndefined(value) && isEmpty(value);
+  return isNullOrUndefined(value) || isEmpty(value);
 };
 
 /**
@@ -267,3 +267,39 @@ export const genericObjectTypeFn = <T extends string, U>(
   key: T,
   rValue: U
 ): GenericObjectType<T, U> => ({ [key]: rValue } as GenericObjectType<T, U>);
+
+export const compareObjectArraysWithTypeSafe = <T extends object[]>(
+  arr1: T[],
+  arr2: T[]
+): { result: boolean; error: ErrorType } => {
+  if (arr1.length !== arr2.length) {
+    return {
+      result: false,
+      error: `compare object array length are not matched`,
+    };
+  }
+
+  for (let i = 0; i < arr1.length; i++) {
+    const obj1 = arr1[i];
+    const obj2 = arr2[i];
+
+    if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+      return { result: false, error: `compare objects length are not matched` };
+    }
+
+    for (const key in obj1) {
+      if (!(key in obj2)) {
+        return {
+          result: false,
+          error: `compare object key not exists in other`,
+        };
+      }
+
+      if (typeof obj1[key] !== typeof obj2[key]) {
+        return { result: false, error: `compare object type are not matched` };
+      }
+      return { result: true, error: null };
+    }
+  }
+  return { result: true, error: null };
+};

@@ -24,6 +24,7 @@ npm i @slck/utils --save
     - toCamelCaseKeys
     - objectDifferenceByProps
     - genericObjectTypeFn
+    - compareObjectArraysWithTypeSafe
 
 # Types
 
