@@ -1,6 +1,6 @@
 {
   "name": "@slck/utils",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "type": "commonjs",
   "license": "MIT",
   "publishConfig": {
@@ -31,6 +31,7 @@
     "isObject",
     "isEmpty",
     "toCamelCaseKeys",
-    "objectDifferenceByProps"
+    "objectDifferenceByProps",
+    "compareObjectArraysWithTypeSafe"
   ]
 }
