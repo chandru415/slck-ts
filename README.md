@@ -27,6 +27,7 @@ npm i @slck/utils --save
     - objectDifferenceByProps
     - genericObjectTypeFn
     - compareObjectArraysWithTypeSafe
+    - shiftToFristWith
 
 # Types
 
