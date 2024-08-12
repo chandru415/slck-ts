@@ -303,3 +303,52 @@ export const compareObjectArraysWithTypeSafe = <T extends object[]>(
   }
   return { result: true, error: null };
 };
+
+/**
+ * @description bring the element to the first by searchWith 
+ * @param items Type of array
+ * @param key key of the object inside the array 
+ * @param searchWith search key either string, number or boolean
+ * @param isConvertStringToLowerCase by default is true
+ * @returns modified object array 
+ */
+export const shiftToFristWith = <T>(
+  items: T[],
+  key: keyof T,
+  searchWith: string | number | boolean,
+  isConvertStringToLowerCase: boolean = true
+): T[] => {
+  items.forEach((value, index) => {
+    switch (typeof value[key]) {
+      case 'string':
+        if (
+          isConvertStringToLowerCase
+            ? (value[key] as string).toLowerCase() ===
+              (searchWith as string).toLowerCase()
+            : value[key] === searchWith
+        ) {
+          items.splice(index, 1);
+          items.unshift(value);
+        }
+        break;
+
+      case 'boolean':
+        if (value[key] === searchWith) {
+          items.splice(index, 1);
+          items.unshift(value);
+        }
+        break;
+
+      case 'number':
+        if (value[key] === searchWith) {
+          items.splice(index, 1);
+          items.unshift(value);
+        }
+        break;
+
+      default:
+        break;
+    }
+  });
+  return items;
+};
