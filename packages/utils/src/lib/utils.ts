@@ -268,6 +268,12 @@ export const genericObjectTypeFn = <T extends string, U>(
   rValue: U
 ): GenericObjectType<T, U> => ({ [key]: rValue } as GenericObjectType<T, U>);
 
+/**
+ * 
+ * @param arr1 
+ * @param arr2 
+ * @returns { result: boolean; error: ErrorType }
+ */
 export const compareObjectArraysWithTypeSafe = <T extends object[]>(
   arr1: T[],
   arr2: T[]
@@ -305,18 +311,18 @@ export const compareObjectArraysWithTypeSafe = <T extends object[]>(
 };
 
 /**
- * @description bring the element to the first by searchWith 
+ * @description bring the element to the first by searchWith
  * @param items Type of array
- * @param key key of the object inside the array 
+ * @param key key of the object inside the array
  * @param searchWith search key either string, number or boolean
  * @param isConvertStringToLowerCase by default is true
- * @returns modified object array 
+ * @returns modified object array
  */
 export const shiftToFristWith = <T>(
   items: T[],
   key: keyof T,
   searchWith: string | number | boolean,
-  isConvertStringToLowerCase: boolean = true
+  isConvertStringToLowerCase = true
 ): T[] => {
   items.forEach((value, index) => {
     switch (typeof value[key]) {
@@ -352,3 +358,16 @@ export const shiftToFristWith = <T>(
   });
   return items;
 };
+
+/**
+ * @description Return `true` if the property values match in the collection of objects.
+ * @param object T
+ * @param collection T[]  
+ * @param prop key of T
+ * @returns boolean
+ */
+export const checkObjectPropValueExistsInCollection = <T>(
+  object: T,
+  collection: T[],
+  prop: keyof T
+) => collection.some((c) => c[prop] === object[prop]);

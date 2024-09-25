@@ -26,6 +26,7 @@ npm i @slck/utils --save
     - genericObjectTypeFn
     - compareObjectArraysWithTypeSafe
     - shiftToFristWith
+    - checkObjectPropValueExistsInCollection
 
 # Types
 
