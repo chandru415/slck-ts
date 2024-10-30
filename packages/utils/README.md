@@ -27,6 +27,8 @@ npm i @slck/utils --save
     - compareObjectArraysWithTypeSafe
     - shiftToFristWith
     - checkObjectPropValueExistsInCollection
+    - convertMinutesToTimeText
+    - firstLetterFromString
 
 # Types
 
