@@ -1,4 +1,4 @@
-import { forIn, isArray } from 'lodash';
+import { isArray } from 'lodash';
 import { ErrorType, GenericObjectType } from './generics';
 
 /**
@@ -151,10 +151,8 @@ export const isEmptyInDepth = (value?: any): boolean => {
   if (isNullOrUndefined(value)) {
     return true;
   } else {
-    let keyLength = 0;
     let emptyValues = 0;
-    forIn(value, (v, key) => {
-      keyLength += 1;
+    Object.entries(value).every(([key, v]) => {
       switch (typeof v) {
         case 'boolean':
           emptyValues += v === false ? 1 : 0;
@@ -167,13 +165,13 @@ export const isEmptyInDepth = (value?: any): boolean => {
           if (isNullOrUndefined(v)) {
             emptyValues += 1;
           } else {
-            emptyValues += v.length <= 0 ? 1 : 0;
+            emptyValues += Object.entries(value).length <= 0 ? 1 : 0;
           }
 
           break;
       }
     });
-    return keyLength === emptyValues;
+    return Object.entries(value).length === emptyValues;
   }
 };
 
@@ -269,9 +267,9 @@ export const genericObjectTypeFn = <T extends string, U>(
 ): GenericObjectType<T, U> => ({ [key]: rValue } as GenericObjectType<T, U>);
 
 /**
- * 
- * @param arr1 
- * @param arr2 
+ *
+ * @param arr1
+ * @param arr2
  * @returns { result: boolean; error: ErrorType }
  */
 export const compareObjectArraysWithTypeSafe = <T extends object[]>(
@@ -362,7 +360,7 @@ export const shiftToFristWith = <T>(
 /**
  * @description Return `true` if the property values match in the collection of objects.
  * @param object T
- * @param collection T[]  
+ * @param collection T[]
  * @param prop key of T
  * @returns boolean
  */
@@ -371,3 +369,38 @@ export const checkObjectPropValueExistsInCollection = <T>(
   collection: T[],
   prop: keyof T
 ) => collection.some((c) => c[prop] === object[prop]);
+
+/**
+ *
+ * @param minutes number of minutes
+ * @param unitOfHours like 'h', 'hrs'
+ * @param unitOfminutes like 'min', 'm'
+ * @returns
+ */
+export const convertMinutesToTimeText = (
+  minutes: number,
+  unitOfHours: string,
+  unitOfminutes: string
+) => {
+  return `${Math.floor(minutes / 60)} ${unitOfHours} ${Math.floor(
+    minutes % 60
+  )} ${unitOfminutes}`;
+};
+
+/**
+ *
+ * @param text
+ * @param seperator
+ * @returns
+ */
+export const firstLetterFromString = (
+  text: string,
+  seperator = ' '
+): string => {
+  return text
+    ? text
+        .split(`${seperator}`)
+        .map((s) => (s ? s[0].toUpperCase() : ''))
+        .join('')
+    : ``;
+};
