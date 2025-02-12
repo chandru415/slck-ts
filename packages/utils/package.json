@@ -1,6 +1,6 @@
 {
   "name": "@slck/utils",
-  "version": "4.1.5",
+  "version": "4.1.11",
   "type": "commonjs",
   "license": "MIT",
   "publishConfig": {
@@ -36,6 +36,10 @@
     "shiftToFristWith",
     "checkObjectPropValueExistsInCollection",
     "convertMinutesToTimeText",
-    "firstLetterFromString"
+    "firstLetterFromString",
+    "constructTreeRecursively",
+    "EndpointConfig",
+    "trimObjectValues",
+    "hasValidDateFn"
   ]
 }

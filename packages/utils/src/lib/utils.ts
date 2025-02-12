@@ -1,5 +1,5 @@
 import { isArray } from 'lodash';
-import { ErrorType, GenericObjectType } from './generics';
+import { EndpointConfig, ErrorType, GenericObjectType, UnCapitalizeObjectKeys } from './generics';
 
 /**
  * verifies object is null or undefined, if 'yes' return true.
@@ -152,7 +152,7 @@ export const isEmptyInDepth = (value?: any): boolean => {
     return true;
   } else {
     let emptyValues = 0;
-    Object.entries(value).every(([key, v]) => {
+    Object.entries(value).forEach(([key, v]) => {
       switch (typeof v) {
         case 'boolean':
           emptyValues += v === false ? 1 : 0;
@@ -173,13 +173,6 @@ export const isEmptyInDepth = (value?: any): boolean => {
     });
     return Object.entries(value).length === emptyValues;
   }
-};
-
-export type UnCapitalizeObjectKeys<T> = {
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  [key in keyof T as Uncapitalize<key & string>]: T[key] extends Object
-    ? UnCapitalizeObjectKeys<T[key]>
-    : T[key];
 };
 
 /**
@@ -272,14 +265,14 @@ export const genericObjectTypeFn = <T extends string, U>(
  * @param arr2
  * @returns { result: boolean; error: ErrorType }
  */
-export const compareObjectArraysWithTypeSafe = <T extends object[]>(
+export const compareObjectArraysWithTypeSafe = <T extends object>(
   arr1: T[],
   arr2: T[]
 ): { result: boolean; error: ErrorType } => {
   if (arr1.length !== arr2.length) {
     return {
       result: false,
-      error: `compare object array length are not matched`,
+      error: `Array lengths do not match`,
     };
   }
 
@@ -288,21 +281,26 @@ export const compareObjectArraysWithTypeSafe = <T extends object[]>(
     const obj2 = arr2[i];
 
     if (Object.keys(obj1).length !== Object.keys(obj2).length) {
-      return { result: false, error: `compare objects length are not matched` };
+      return {
+        result: false,
+        error: `Object at index ${i} has a different number of keys.`,
+      };
     }
 
     for (const key in obj1) {
       if (!(key in obj2)) {
         return {
           result: false,
-          error: `compare object key not exists in other`,
+          error: `Key "${key}" in object at index ${i} does not exist in the other object.`,
         };
       }
 
       if (typeof obj1[key] !== typeof obj2[key]) {
-        return { result: false, error: `compare object type are not matched` };
+        return {
+          result: false,
+          error: `Key "${key}" in object at index ${i} has a type mismatch.`,
+        };
       }
-      return { result: true, error: null };
     }
   }
   return { result: true, error: null };
@@ -393,7 +391,7 @@ export const convertMinutesToTimeText = (
  * @param seperator
  * @returns
  */
-export const firstLetterFromString = (
+export const convertFirstLetterToUpper = (
   text: string,
   seperator = ' '
 ): string => {
@@ -403,4 +401,136 @@ export const firstLetterFromString = (
         .map((s) => (s ? s[0].toUpperCase() : ''))
         .join('')
     : ``;
+};
+
+/**
+ *
+ * @param data is a collection of T
+ * @param childrenKey children key property in K
+ * @param valueKey value key which used for split or run logic
+ * @param valueKeyForTree value to holds the conversion value from valueKey
+ * @param delimiter string spearator
+ * @returns a collection of K
+ */
+export const constructTreeRecursively = <T, K>(
+  data: T[],
+  childrenKey: keyof K,
+  valueKey: keyof T,
+  valueKeyForTree: keyof K,
+  delimiter = '.'
+): K[] => {
+  const root: K[] = [];
+
+  data.forEach((obj) => {
+    const parts = (obj[valueKey] as string).split(delimiter);
+    addPathToTreeRecursively<K, T>(
+      parts,
+      obj,
+      root,
+      childrenKey,
+      valueKeyForTree
+    );
+  });
+
+  return root;
+};
+
+const addPathToTreeRecursively = <K, T>(
+  parts: string[],
+  rootobjectReference: T,
+  nodeList: K[],
+  childrenKey: keyof K,
+  valueKey: keyof K,
+  delimiter = '.'
+) => {
+  if (parts.length === 0) {
+    return;
+  }
+  const [current, ...rest] = parts;
+
+  // Find the current node in the existing tree
+  let node = nodeList.find((n) => n[valueKey] === current);
+
+  if (!node) {
+    // If the node doesn't exist, create it
+    node = {
+      ...rootobjectReference,
+      [valueKey]: current,
+      [childrenKey]: [],
+    } as K;
+
+    nodeList.push(node);
+  }
+
+  const children = node[childrenKey] as K[];
+
+  // Recurse for the rest of the parts
+  addPathToTreeRecursively(
+    rest,
+    rootobjectReference,
+    children,
+    childrenKey,
+    valueKey,
+    delimiter
+  );
+};
+
+export const addSpacesToCamelCase = (input: string) => {
+  return input.replace(/([A-Z])/g, ' $1').trim();
+};
+
+export const isEndpointConfig = (value: any): value is EndpointConfig => {
+  return (
+    typeof value === 'object' &&
+    typeof value.uri === 'string' &&
+    ['GET', 'POST', 'DELETE', 'PUT', 'PATCH'].includes(value.verb) &&
+    (value.pathParams === undefined ||
+      (Array.isArray(value.pathParams) &&
+        value.pathParams.every(
+          (param: { key: any }) =>
+            typeof param.key === 'string' &&
+            Object.prototype.hasOwnProperty.call(param, 'value')
+        ))) &&
+    (value.queryParams === undefined ||
+      (Array.isArray(value.queryParams) &&
+        value.queryParams.every(
+          (param: { key: any }) =>
+            typeof param.key === 'string' &&
+            Object.prototype.hasOwnProperty.call(param, 'value')
+        ))) &&
+    (value.body === undefined ||
+      typeof value.body === 'object' ||
+      typeof value.body === 'string' ||
+      value.body === null)
+  );
+};
+
+export const trimObjectValues = (obj: any, seen = new WeakSet()): any => {
+  if (typeof obj !== 'object' || obj === null) {
+    return obj;
+  }
+  if (seen.has(obj)) {
+    return obj;
+  }
+  seen.add(obj);
+  const result: any = Array.isArray(obj) ? [] : {};
+
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const value = obj[key];
+
+      if (typeof value === 'string') {
+        result[key] = value.trim();
+      } else if (typeof value === 'object' && value !== null) {
+        result[key] = trimObjectValues(value, seen);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+};
+
+export const hasValidDateFn = (date: string | Date): boolean => {
+  return date !== '0001-01-01T00:00:00';
 };
