@@ -32,6 +32,7 @@ npm i @slck/utils --save
     - constructTreeRecursively
     - trimObjectValues
     - hasValidDateFn
+    - generateRandomColorFn
 
 # Types
 

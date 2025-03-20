@@ -531,6 +531,11 @@ export const trimObjectValues = (obj: any, seen = new WeakSet()): any => {
   return result;
 };
 
+/**
+ * 
+ * @param date 
+ * @returns 
+ */
 export const hasValidDateFn = (date: string | Date): boolean => {
   return date !== '0001-01-01T00:00:00';
 };
