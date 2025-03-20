@@ -29,8 +29,13 @@ npm i @slck/utils --save
     - checkObjectPropValueExistsInCollection
     - convertMinutesToTimeText
     - firstLetterFromString
+    - constructTreeRecursively
+    - trimObjectValues
+    - hasValidDateFn
+    - generateRandomColorFn
 
 # Types
 
     - GenericObjectType
     - ErrorType
+    - EndpointConfig

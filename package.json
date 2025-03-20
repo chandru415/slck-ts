@@ -1,22 +1,23 @@
 {
   "name": "slck",
-  "version": "4.2.0",
+  "version": "4.1.11",
   "license": "MIT",
   "scripts": {},
   "devDependencies": {
+    "@nx/eslint": "20.4.2",
+    "@nx/eslint-plugin": "20.4.2",
+    "@nx/jest": "20.4.2",
+    "@nx/js": "20.4.2",
+    "@nx/workspace": "20.4.2",
+    "@types/lodash": "^4.14.191",
     "@typescript-eslint/eslint-plugin": "7.16.0",
     "@typescript-eslint/parser": "7.16.0",
-    "@types/lodash": "^4.14.191",
     "eslint": "8.57.0",
     "eslint-config-prettier": "9.0.0",
-    "nx": "19.5.1",
+    "nx": "20.4.2",
     "prettier": "^2.6.2",
-    "typescript": "5.5.3",
-    "@nx/workspace": "19.5.1",
-    "@nx/eslint": "19.5.1",
-    "@nx/eslint-plugin": "19.5.1",
-    "@nx/js": "19.5.1",
-    "@nx/jest": "19.5.1"
+    "typedoc": "^0.27.9",
+    "typescript": "5.7.3"
   },
   "dependencies": {
     "lodash": "^4.17.21"
