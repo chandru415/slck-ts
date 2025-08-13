@@ -33,6 +33,10 @@ npm i @slck/utils --save
     - trimObjectValues
     - hasValidDateFn
     - generateRandomColorFn
+    - extractCommonAndDifferentValues
+    - isAnyRecordWithEmptyValues
+    - isDateLike
+    - hasDuplicateByKeys
 
 # Types
 

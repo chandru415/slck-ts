@@ -1,5 +1,15 @@
 import { isArray } from 'lodash';
-import { EndpointConfig, ErrorType, GenericObjectType, UnCapitalizeObjectKeys } from './generics';
+import {
+  CompareOptions,
+  EndpointConfig,
+  ErrorType,
+  GenericObjectType,
+  SCALES,
+  TEENS,
+  TENS,
+  UnCapitalizeObjectKeys,
+  UNITS,
+} from './generics';
 
 /**
  * verifies object is null or undefined, if 'yes' return true.
@@ -228,10 +238,8 @@ export const objectDifferenceByProps = (
 
   for (const prop in sourceObject) {
     if (
-      // eslint-disable-next-line no-prototype-builtins
-      sourceObject.hasOwnProperty(prop) &&
-      // eslint-disable-next-line no-prototype-builtins
-      destinationObject.hasOwnProperty(prop)
+      Object.prototype.hasOwnProperty.call(sourceObject, prop) &&
+      Object.prototype.hasOwnProperty.call(destinationObject, prop)
     ) {
       switch (typeof sourceObject[prop]) {
         case 'object':
@@ -532,10 +540,265 @@ export const trimObjectValues = (obj: any, seen = new WeakSet()): any => {
 };
 
 /**
- * 
- * @param date 
- * @returns 
+ *
+ * @param date
+ * @returns
  */
 export const hasValidDateFn = (date: string | Date): boolean => {
   return date !== '0001-01-01T00:00:00';
 };
+
+/**
+ * Converts a number to its English text representation
+ * @param num The number to convert (must be an integer between -1e18 and 1e18)
+ * @returns The textual representation of the number
+ * @throws {Error} If the number is too large, not finite, or not a safe integer
+ */
+export function numberToText(num: number): string {
+  // Input validation
+  if (!Number.isFinite(num)) {
+    throw new Error('Input must be a finite number');
+  }
+  if (!Number.isSafeInteger(num)) {
+    throw new Error('Input must be a safe integer');
+  }
+  if (Math.abs(num) > 1e18) {
+    throw new Error(
+      'Number too large - maximum supported absolute value is 1e18'
+    );
+  }
+
+  if (num === 0) return 'zero';
+  if (num < 0) return `minus ${numberToText(-num)}`;
+
+  let remaining = num;
+  let result = '';
+
+  // Handle large scales (thousands, millions, etc.)
+  for (const scale of SCALES) {
+    if (remaining >= scale.value) {
+      const scaleAmount = Math.floor(remaining / scale.value);
+      result += `${convertLessThanThousand(scaleAmount)} ${scale.name}`;
+      remaining %= scale.value;
+
+      if (remaining > 0) {
+        result += remaining < 100 ? ' and ' : ', ';
+      }
+    }
+  }
+
+  // Handle the remaining part (less than 1000)
+  if (remaining > 0) {
+    result += convertLessThanThousand(remaining);
+  }
+
+  return result.trim();
+}
+
+/**
+ * Converts a number less than 1000 to text
+ * @param num The number to convert (0 < num < 1000)
+ * @returns The textual representation
+ */
+function convertLessThanThousand(num: number): string {
+  let result = '';
+  const hundreds = Math.floor(num / 100);
+  const remainder = num % 100;
+
+  if (hundreds > 0) {
+    result += `${UNITS[hundreds]} hundred`;
+    if (remainder > 0) {
+      result += ` and `;
+    }
+  }
+
+  if (remainder > 0) {
+    result += convertLessThanHundred(remainder);
+  }
+
+  return result;
+}
+
+/**
+ * Converts a number less than 100 to text
+ * @param num The number to convert (0 < num < 100)
+ * @returns The textual representation
+ */
+function convertLessThanHundred(num: number): string {
+  if (num < 10) {
+    return UNITS[num];
+  }
+  if (num < 20) {
+    return TEENS[num - 10];
+  }
+
+  const tens = Math.floor(num / 10);
+  const units = num % 10;
+
+  return units === 0 ? TENS[tens] : `${TENS[tens]}-${UNITS[units]}`;
+}
+
+/**
+ * Compares a list of objects and returns their deeply nested differences and similarities.
+ *
+ * This function supports:
+ * - Recursive comparison of nested objects
+ * - Array value comparison
+ * - Optional key exclusion via `options.skipKeys`
+ *
+ * @param objects - An array of objects to be compared (minimum two recommended).
+ * @param options - Configuration options for comparison.
+ *   - skipKeys: Keys to ignore during comparison (e.g. timestamps, metadata, etc.)
+ *
+ * @returns An object with two keys:
+ *   - `same`: Keys and values that are identical across all input objects.
+ *   - `diff`: Keys with values that differ between objects.
+ *
+ * @example
+ * compareDeepDifferencesAcrossObjects(
+ *   [
+ *     { name: "Alice", tags: ["admin"], info: { age: 30 } },
+ *     { name: "Alice", tags: ["admin"], info: { age: 31 } }
+ *   ],
+ *   { skipKeys: ["tags"] }
+ * )
+ * // => {
+ * //   same: { name: "Alice" },
+ * //   diff: { info: { age: [30, 31] } }
+ * // }
+ */
+export function extractCommonAndDifferentValues(
+  objects: Record<string, any>[],
+  options: CompareOptions = {}
+): { same: any; diff: any } {
+  if (!objects || objects.length < 2) return { same: {}, diff: {} };
+
+  const { skipKeys = [], compareKeys, ignoreArrayOrder = false } = options;
+
+  const same: any = {};
+  const diff: any = {};
+
+  const allKeys = Array.from(
+    new Set(objects.flatMap((obj) => extractKeys(obj)))
+  ).filter((key) => {
+    if (compareKeys) return compareKeys.includes(key);
+    return !skipKeys.includes(key);
+  });
+
+  for (const key of allKeys) {
+    const values = objects.map((obj) => getByPath(obj, key));
+    const allEqual = values.every((val) =>
+      isEqualWithArrays(val, values[0], ignoreArrayOrder)
+    );
+
+    setByPath(allEqual ? same : diff, key, values[0]);
+  }
+
+  return { same, diff };
+}
+
+function extractKeys(obj: any, prefix = ''): string[] {
+  if (typeof obj !== 'object' || obj === null) return [];
+
+  return Object.entries(obj).flatMap(([key, val]) => {
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+      return extractKeys(val, fullKey);
+    }
+    return fullKey;
+  });
+}
+
+function getByPath(obj: any, path: string): any {
+  return path.split('.').reduce((o, k) => (o ? o[k] : undefined), obj);
+}
+
+function setByPath(obj: any, path: string, value: any): void {
+  const keys = path.split('.');
+  let current = obj;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const k = keys[i];
+    current[k] = current[k] || {};
+    current = current[k];
+  }
+
+  current[keys[keys.length - 1]] = value;
+}
+
+function isEqualWithArrays(a: any, b: any, ignoreOrder: boolean): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (ignoreOrder) {
+      return (
+        a.length === b.length &&
+        [...a].sort().toString() === [...b].sort().toString()
+      );
+    }
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  if (typeof a === 'object' && typeof b === 'object') {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  return a === b;
+}
+
+export const isAnyRecordWithEmptyValues = <T extends Record<string, any>>(
+  records: T[],
+  compareKeys: (keyof T)[],
+  skipKeys: (keyof T)[] = []
+): boolean => {
+  return records.some((record) => {
+    return compareKeys
+      .filter((key) => !skipKeys.includes(key))
+      .some((key) => isEmptyInDepth(record[key]));
+  });
+};
+
+/**
+ * Checks whether the provided value is "date-like".
+ * That means it is either:
+ * 1. A native JavaScript Date object
+ * 2. A valid ISO 8601 date string (e.g. "2023-01-01" or "2023-01-01T12:00:00Z")
+ *
+ * @param value - Any input value to check
+ * @returns true if the value resembles a date, false otherwise
+ */
+export const isDateLike = (value: any): boolean => {
+  if (!value) return false;
+
+  // Check if it's a Date or an ISO string
+  return (
+    Object.prototype.toString.call(value) === '[object Date]' ||
+    (typeof value === 'string' &&
+      !isNaN(Date.parse(value)) &&
+      /^\d{4}-\d{2}-\d{2}(T.*)?$/.test(value))
+  );
+};
+
+/**
+ * Checks whether there are duplicate objects in the array
+ * based on a combination of one or more object keys.
+ *
+ * @param arr - Array of objects to check
+ * @param keys - One or more keys to uniquely identify each object
+ * @returns true if a duplicate exists, false otherwise
+ */
+export const hasDuplicateByKeys = (arr: any[], ...keys: string[]): boolean => {
+  const seen = new Set();
+
+  for (const item of arr) {
+    // Create a unique identifier string based on the values of the provided keys
+    const keyCombo = keys.map(key => item[key]).join('|');
+
+    if (seen.has(keyCombo)) {
+      return true; // Duplicate found
+    }
+
+    seen.add(keyCombo); // Track this key combination
+  }
+
+  return false; // No duplicates
+};
+

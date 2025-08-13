@@ -24,3 +24,61 @@ export type UnCapitalizeObjectKeys<T> = {
     ? UnCapitalizeObjectKeys<T[key]>
     : T[key];
 };
+
+export type Scale = {
+  value: number;
+  name: string;
+  plural?: string;
+};
+
+export const SCALES: Scale[] = [
+  { value: 1e15, name: 'quadrillion' },
+  { value: 1e12, name: 'trillion' },
+  { value: 1e9, name: 'billion' },
+  { value: 1e6, name: 'million' },
+  { value: 1e3, name: 'thousand' },
+];
+
+export const UNITS: string[] = [
+  '',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+];
+export const TEENS: string[] = [
+  'ten',
+  'eleven',
+  'twelve',
+  'thirteen',
+  'fourteen',
+  'fifteen',
+  'sixteen',
+  'seventeen',
+  'eighteen',
+  'nineteen',
+];
+export const TENS: string[] = [
+  '',
+  'ten',
+  'twenty',
+  'thirty',
+  'forty',
+  'fifty',
+  'sixty',
+  'seventy',
+  'eighty',
+  'ninety',
+];
+
+
+export type CompareOptions = {
+  skipKeys?: string[];
+  compareKeys?: string[];
+  ignoreArrayOrder?: boolean;
+};

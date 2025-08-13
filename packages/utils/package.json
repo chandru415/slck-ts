@@ -1,6 +1,6 @@
 {
   "name": "@slck/utils",
-  "version": "4.2",
+  "version": "4.7.0",
   "type": "commonjs",
   "license": "MIT",
   "publishConfig": {
@@ -40,6 +40,11 @@
     "constructTreeRecursively",
     "EndpointConfig",
     "trimObjectValues",
-    "hasValidDateFn"
+    "hasValidDateFn",
+    "generateRandomColorFn",
+    "extractCommonAndDifferentValues",
+    "isAnyRecordWithEmptyValues",
+    "isDateLike",
+    "hasDuplicateByKeys"
   ]
 }
