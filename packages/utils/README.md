@@ -37,6 +37,7 @@ npm i @slck/utils --save
     - isAnyRecordWithEmptyValues
     - isDateLike
     - hasDuplicateByKeys
+    - generateMultiplesInRange
 
 # Types
 

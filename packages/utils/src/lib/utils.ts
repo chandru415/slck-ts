@@ -790,7 +790,7 @@ export const hasDuplicateByKeys = (arr: any[], ...keys: string[]): boolean => {
 
   for (const item of arr) {
     // Create a unique identifier string based on the values of the provided keys
-    const keyCombo = keys.map(key => item[key]).join('|');
+    const keyCombo = keys.map((key) => item[key]).join('|');
 
     if (seen.has(keyCombo)) {
       return true; // Duplicate found
@@ -802,3 +802,30 @@ export const hasDuplicateByKeys = (arr: any[], ...keys: string[]): boolean => {
   return false; // No duplicates
 };
 
+
+/**
+ * Returns an array of numbers within a specified range [start, end]
+ * that are exact multiples of a given number.
+ *
+ * @param start - The start of the range (inclusive).
+ * @param end - The end of the range (inclusive).
+ * @param multiple - The number to find multiples of within the range.
+ * @returns An array of numbers that are multiples of `multiple` between `start` and `end`.
+ */
+export const generateMultiplesInRange = (
+  start: number,
+  end: number,
+  multiple: number
+): number[] => {
+  const result: number[] = [];
+
+  // Find the first number >= start that is a multiple of `multiple`
+  const first = Math.ceil(start / multiple) * multiple;
+
+  // Loop from the first valid multiple to the end of the range, stepping by `multiple`
+  for (let i = first; i <= end; i += multiple) {
+    result.push(i); // Add each multiple to the result array
+  }
+
+  return result; // Return the array of multiples
+};
