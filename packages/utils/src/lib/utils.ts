@@ -802,7 +802,6 @@ export const hasDuplicateByKeys = (arr: any[], ...keys: string[]): boolean => {
   return false; // No duplicates
 };
 
-
 /**
  * Returns an array of numbers within a specified range [start, end]
  * that are exact multiples of a given number.
@@ -829,3 +828,41 @@ export const generateMultiplesInRange = (
 
   return result; // Return the array of multiples
 };
+
+/**
+ * Filters objects from a source array based on matching key values found in another array.
+ *
+ * @template TSource - Type of the source array objects.
+ * @template TMatch - Type of the matching array objects.
+ * @template TSourceKey - Key in the source objects to match.
+ * @template TMatchKey - Key in the matching objects to compare.
+ * @template KeyType - The shared type of values in both keys (enforced for type safety).
+ *
+ * @param sourceArray - The array of objects to filter (e.g., full list of users).
+ * @param selectionArray - The array of objects whose key values determine what to keep.
+ * @param sourceKey - The key in `sourceArray` used for matching.
+ * @param matchKey - The key in `selectionArray` used for matching.
+ * @returns A filtered array of source objects whose key values are found in the selection array.
+ */
+export function selectMatchingObjectsByKeys<
+  TSource,
+  TMatch,
+  TSourceKey extends keyof TSource,
+  TMatchKey extends keyof TMatch,
+  KeyType extends TSource[TSourceKey] & TMatch[TMatchKey]
+>(
+  sourceArray: TSource[],
+  selectionArray: TMatch[],
+  sourceKey: TSourceKey,
+  matchKey: TMatchKey
+): TSource[] {
+  // Build a Set of values from selectionArray to use for fast lookups
+  const selectedValues = new Set<KeyType>(
+    selectionArray.map((item) => item[matchKey] as KeyType)
+  );
+
+  // Filter sourceArray to only include items with matching key values
+  return sourceArray.filter((item) =>
+    selectedValues.has(item[sourceKey] as KeyType)
+  );
+}

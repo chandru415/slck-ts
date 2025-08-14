@@ -1,6 +1,6 @@
 {
   "name": "@slck/utils",
-  "version": "4.8.0",
+  "version": "4.9.0",
   "type": "commonjs",
   "license": "MIT",
   "publishConfig": {
@@ -46,6 +46,7 @@
     "isAnyRecordWithEmptyValues",
     "isDateLike",
     "hasDuplicateByKeys",
-    "generateMultiplesInRange"
+    "generateMultiplesInRange",
+    "selectMatchingObjectsByKeys"
   ]
 }
