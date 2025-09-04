@@ -38,6 +38,7 @@ npm i @slck/utils --save
     - isDateLike
     - hasDuplicateByKeys
     - generateMultiplesInRange
+    - selectMatchingObjectsByKeys
 
 # Types
 
