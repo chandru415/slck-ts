@@ -39,9 +39,13 @@ npm i @slck/utils --save
     - hasDuplicateByKeys
     - generateMultiplesInRange
     - selectMatchingObjectsByKeys
+    - toReadableTitle
+    - parseSqlCustomExpressionTokens
+    - isNumeric
 
 # Types
 
     - GenericObjectType
     - ErrorType
     - EndpointConfig
+    - SQLCustomToken

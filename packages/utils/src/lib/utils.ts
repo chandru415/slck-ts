@@ -866,3 +866,372 @@ export function selectMatchingObjectsByKeys<
     selectedValues.has(item[sourceKey] as KeyType)
   );
 }
+
+/**
+ * Converts a string from camelCase, PascalCase, snake_case, kebab-case, or normal text
+ * into a human-readable Title Case string.
+ *
+ * Known acronyms can be passed optionally to preserve their capitalization (e.g., "ID", "API").
+ *
+ * @param value - The input string to format
+ * @param acronyms - Optional set or array of acronyms to preserve (e.g., ['ID', 'API'])
+ * @returns A formatted Title Case string
+ */
+export const toReadableTitle = (
+  value: string,
+  acronyms?: Set<string> | string[]
+): string => {
+  const acronymSet = acronyms
+    ? new Set(
+        Array.isArray(acronyms)
+          ? acronyms.map((a) => a.toUpperCase())
+          : [...acronyms].map((a) => a.toUpperCase())
+      )
+    : undefined;
+
+  return (
+    value
+      // Add space between camelCase or PascalCase boundaries
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      // Replace snake_case or kebab-case with spaces
+      .replace(/[_\-]+/g, ' ')
+      // Normalize spacing
+      .replace(/\s+/g, ' ')
+      // Trim surrounding whitespace
+      .trim()
+      // Split into words and process
+      .split(' ')
+      .map((word) => {
+        const upperWord = word.toUpperCase();
+        if (acronymSet?.has(upperWord)) {
+          return upperWord;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ')
+  );
+};
+
+// ---------------------------
+// Token type represents a lexical token in the expression
+// ---------------------------
+export type SQLCustomToken = {
+  key: string | any; // The string representation of the token (e.g., 'SUM', '(', '42')
+  value: string | any; // Value of the token, usually same as key
+  dataType?: string; // Optional type of the token (e.g., 'int', 'string')
+  // optional for future: number, string literals
+};
+
+// ---------------------------
+// ASTNode represents a node in the Abstract Syntax Tree (AST)
+// ---------------------------
+export type ASTNode = {
+  type: string | null; // Type of the expression (e.g., 'number', 'string')
+  value?: string | any; // Literal value (for constants/columns)
+  left?: ASTNode; // Left child (for binary operations)
+  right?: ASTNode; // Right child (for binary operations)
+  func?: string; // Function name if this node is a function call
+  args?: ASTNode[]; // Arguments of the function
+  op?: string; // Operator if this node is a binary operation
+};
+
+// ---------------------------
+// Supported function names
+// ---------------------------
+export const SQL_FUNCTION_NAMES = [
+  'SUM',
+  'AVG',
+  'ROUND',
+  'RATIO',
+  'CONCAT',
+  'COUNT',
+  'MIN',
+  'MAX',
+] as const;
+
+// Type representing one of the supported function names
+export type FunctionName = (typeof SQL_FUNCTION_NAMES)[number];
+
+// Utility to create error objects with message and token index
+export function createError(message: string, index: number) {
+  return { message, index };
+}
+
+// ---------------------------
+// Interface for function definitions
+// ---------------------------
+interface FunctionDefinition {
+  validate: (
+    func: FunctionName,
+    args: ASTNode[],
+    index: number,
+    error: (msg: string, idx?: number) => void
+  ) => void; // Validation logic for the function arguments
+  returns: string; // Return type of the function
+}
+
+// ---------------------------
+// Function validation and return type mapping
+// ---------------------------
+export const FUNCTIONS: Record<FunctionName, FunctionDefinition> = {
+  SUM: {
+    validate: (func, args, idx, error) => {
+      args.forEach((arg) => {
+        if (!['int', 'float', 'decimal', 'number'].includes(arg.type ?? '')) {
+          error(`${func} requires numeric argument`, idx);
+        }
+      });
+    },
+    returns: 'number',
+  },
+
+  AVG: {
+    validate: (func, args, idx, error) => {
+      args.forEach((arg) => {
+        if (!['int', 'float', 'decimal', 'number'].includes(arg.type ?? '')) {
+          error(`${func} requires numeric argument`, idx);
+        }
+      });
+    },
+    returns: 'number',
+  },
+
+  ROUND: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`ROUND requires exactly 1 argument`, idx);
+      } else if (
+        !['int', 'float', 'decimal', 'number'].includes(args[0].type ?? '')
+      ) {
+        error(`ROUND requires numeric argument`, idx);
+      }
+    },
+    returns: 'number',
+  },
+
+  RATIO: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 2) {
+        error(`RATIO requires exactly 2 numeric arguments`, idx);
+      } else {
+        args.forEach((arg) => {
+          if (!['int', 'float', 'decimal', 'number'].includes(arg.type ?? '')) {
+            error(`RATIO requires numeric arguments`, idx);
+          }
+        });
+      }
+    },
+    returns: 'number',
+  },
+
+  CONCAT: {
+    validate: (func, args, idx, error) => {
+      args.forEach((arg) => {
+        if (arg.type !== 'string') {
+          error(`CONCAT requires string arguments`, idx);
+        }
+      });
+    },
+    returns: 'string',
+  },
+
+  COUNT: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`COUNT requires exactly 1 argument`, idx);
+        return;
+      }
+
+      const arg = args[0];
+      if (arg.value !== '*' && !arg.type) {
+        error(`COUNT requires a column or '*'`, idx);
+      }
+    },
+    returns: 'number',
+  },
+
+  MIN: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`MIN requires exactly 1 argument`, idx);
+        return;
+      }
+      if (!['int', 'float', 'decimal', 'number'].includes(args[0].type ?? '')) {
+        error(`MIN requires a numeric argument`, idx);
+      }
+    },
+    returns: 'number',
+  },
+
+  MAX: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`MAX requires exactly 1 argument`, idx);
+        return;
+      }
+      if (!['int', 'float', 'decimal', 'number'].includes(args[0].type ?? '')) {
+        error(`MAX requires a numeric argument`, idx);
+      }
+    },
+    returns: 'number',
+  },
+};
+
+// ---------------------------
+// Helper to check if a type is numeric
+// ---------------------------
+export const isNumeric = (type?: string | null): boolean =>
+  ['int', 'float', 'decimal', 'number'].includes(type || '');
+
+// ---------------------------
+// Main parser function for custom expressions
+// ---------------------------
+export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
+  let index = 0; // Current token index
+  const errors: { message: string; index: number }[] = [];
+
+  // Peek at the current token without consuming it
+  const peek = () => tokens[index];
+  // Consume the current token and move to the next
+  const consume = () => tokens[index++];
+
+  // Add an error to the errors array
+  const error = (message: string, idx: number = index) => {
+    errors.push({ message, index: idx });
+  };
+
+  // ---------------------------
+  // Parse a "factor" (function, literal, column, or parenthesis)
+  // ---------------------------
+  function parseFactor(): ASTNode {
+    const token = peek();
+
+    if (!token) {
+      error('Unexpected end of expression', index - 1);
+      return { type: null };
+    }
+
+    // Parenthesized expression
+    if (token.key === '(') {
+      consume();
+      const expr = parseExpression();
+      if (peek()?.key === ')') consume();
+      else error("Missing closing ')'", index);
+      return expr;
+    }
+
+    // Function call
+    if (SQL_FUNCTION_NAMES.includes(token.key as FunctionName)) {
+      return parseFunction();
+    }
+
+    // Literal or column
+    if (token.dataType) {
+      consume();
+      return { type: token.dataType, value: token.key };
+    }
+
+    error(`Unexpected token '${token.key}'`, index);
+    consume();
+    return { type: null };
+  }
+
+  // ---------------------------
+  // Parse a function call and its arguments
+  // ---------------------------
+  function parseFunction(): ASTNode {
+    const funcToken = consume();
+    const funcIndex = index - 1;
+    const funcName = funcToken.key as FunctionName;
+
+    if (peek()?.key !== '(') {
+      error(`Function ${funcName} must be followed by '('`, funcIndex);
+      return { type: null };
+    }
+
+    consume(); // consume "("
+
+    const args: ASTNode[] = [];
+    while (peek() && peek()?.key !== ')') {
+      args.push(parseExpression());
+      if (peek()?.key === ',') consume();
+    }
+
+    if (peek()?.key === ')') consume();
+    else error(`Missing ')' for function ${funcName}`, funcIndex);
+
+    // Validate arguments and return type
+    FUNCTIONS[funcName].validate(funcName, args, funcIndex, error);
+
+    return {
+      type: FUNCTIONS[funcName].returns,
+      func: funcName,
+      args,
+    };
+  }
+
+  // ---------------------------
+  // Parse term: factor (* /) factor
+  // ---------------------------
+  function parseTerm(): ASTNode {
+    let node = parseFactor();
+
+    while (peek() && (peek().key === '*' || peek().key === '/')) {
+      const op = consume();
+      const opIndex = index - 1;
+      const right = parseFactor();
+
+      if (!isNumeric(node.type) || !isNumeric(right.type)) {
+        error(`Operator '${op.key}' requires numeric operands`, opIndex);
+      }
+
+      node = { type: 'number', left: node, op: op.key, right };
+    }
+
+    return node;
+  }
+
+  // ---------------------------
+  // Parse expression: term (+ -) term
+  // ---------------------------
+  function parseExpression(): ASTNode {
+    let node = parseTerm();
+
+    while (peek() && (peek().key === '+' || peek().key === '-')) {
+      const op = consume();
+      const opIndex = index - 1;
+      const right = parseTerm();
+
+      // numeric addition/subtraction
+      if (isNumeric(node.type) && isNumeric(right.type)) {
+        node = { type: 'number', left: node, op: op.key, right };
+      }
+      // string concatenation
+      else if (
+        node.type === 'string' &&
+        right.type === 'string' &&
+        op.key === '+'
+      ) {
+        node = { type: 'string', left: node, op: op.key, right };
+      } else {
+        error(
+          `Operator '${op.key}' type mismatch between ${node.type} and ${right.type}`,
+          opIndex
+        );
+        node = { type: null, left: node, op: op.key, right };
+      }
+    }
+
+    return node;
+  }
+
+  // Parse the root expression
+  const ast = parseExpression();
+
+  // Check if there are extra tokens after a valid expression
+  if (index < tokens.length) {
+    error('Extra tokens after valid expression', index);
+  }
+
+  return errors.length ? { valid: false, errors } : { valid: true, ast };
+}

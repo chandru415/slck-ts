@@ -1,6 +1,6 @@
 {
   "name": "@slck/utils",
-  "version": "4.9.0",
+  "version": "4.11.0",
   "type": "commonjs",
   "license": "MIT",
   "publishConfig": {
@@ -47,6 +47,7 @@
     "isDateLike",
     "hasDuplicateByKeys",
     "generateMultiplesInRange",
-    "selectMatchingObjectsByKeys"
+    "selectMatchingObjectsByKeys",
+    "toReadableTitle"
   ]
 }
