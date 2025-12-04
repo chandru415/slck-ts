@@ -1097,30 +1097,23 @@ export const FUNCTIONS: Record<FunctionName, FunctionDefinition> = {
     validate: (func, args, idx, error) => {
       if (args.length !== 3) {
         return error(
-          `DATEDIFF requires 3 arguments: datepart, startDate, endDate`,
+          `DATEDIFF requires 3 arguments: part, startDate, endDate`,
           idx
         );
       }
 
-      const datepart = args[0].value?.toLowerCase?.();
-
+      const datepart = (args[0].value ?? '').toLowerCase();
       if (!MSSQL_DATEDIFF_PARTS.includes(datepart)) {
-        error(
-          `DATEDIFF datepart must be one of: ${MSSQL_DATEDIFF_PARTS.join(
-            ', '
-          )}`,
-          idx
-        );
+        error(`Invalid DATEDIFF part '${args[0].value}'`, idx);
       }
 
       const isDateType = (a: any) =>
-        ['date', 'datetime', 'timestamp'].includes(a.type ?? '');
+        ['date', 'datetime', 'timestamp', 'DateTime'].includes(
+          (a.type ?? '').toString()
+        );
 
       if (!isDateType(args[1]) || !isDateType(args[2])) {
-        error(
-          `DATEDIFF requires startDate & endDate to be date/datetime/timestamp`,
-          idx
-        );
+        error(`DATEDIFF requires start & end as DATE/DATETIME`, idx);
       }
     },
     returns: 'number',
