@@ -922,6 +922,21 @@ export type SQLCustomToken = {
   // optional for future: number, string literals
 };
 
+export const MSSQL_DATEDIFF_PARTS = [
+  'year',
+  'quarter',
+  'month',
+  'dayofyear',
+  'day',
+  'week',
+  'weekday',
+  'hour',
+  'minute',
+  'second',
+  'millisecond',
+  'microsecond',
+];
+
 // ---------------------------
 // ASTNode represents a node in the Abstract Syntax Tree (AST)
 // ---------------------------
@@ -947,6 +962,7 @@ export const SQL_FUNCTION_NAMES = [
   'COUNT',
   'MIN',
   'MAX',
+  'DATEDIFF',
 ] as const;
 
 // Type representing one of the supported function names
@@ -1075,6 +1091,40 @@ export const FUNCTIONS: Record<FunctionName, FunctionDefinition> = {
     },
     returns: 'number',
   },
+
+  // 🔥 NEW — MSSQL DATEDIFF(datepart, startDate, endDate)
+  DATEDIFF: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 3) {
+        return error(
+          `DATEDIFF requires 3 arguments: datepart, startDate, endDate`,
+          idx
+        );
+      }
+
+      const datepart = args[0].value?.toLowerCase?.();
+
+      if (!MSSQL_DATEDIFF_PARTS.includes(datepart)) {
+        error(
+          `DATEDIFF datepart must be one of: ${MSSQL_DATEDIFF_PARTS.join(
+            ', '
+          )}`,
+          idx
+        );
+      }
+
+      const isDateType = (a: any) =>
+        ['date', 'datetime', 'timestamp'].includes(a.type ?? '');
+
+      if (!isDateType(args[1]) || !isDateType(args[2])) {
+        error(
+          `DATEDIFF requires startDate & endDate to be date/datetime/timestamp`,
+          idx
+        );
+      }
+    },
+    returns: 'number',
+  },
 };
 
 // ---------------------------
@@ -1087,31 +1137,25 @@ export const isNumeric = (type?: string | null): boolean =>
 // Main parser function for custom expressions
 // ---------------------------
 export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
-  let index = 0; // Current token index
+  let index = 0;
   const errors: { message: string; index: number }[] = [];
 
-  // Peek at the current token without consuming it
   const peek = () => tokens[index];
-  // Consume the current token and move to the next
   const consume = () => tokens[index++];
-
-  // Add an error to the errors array
-  const error = (message: string, idx: number = index) => {
+  const error = (message: string, idx: number = index) =>
     errors.push({ message, index: idx });
-  };
 
-  // ---------------------------
-  // Parse a "factor" (function, literal, column, or parenthesis)
-  // ---------------------------
+  /** -------------------------------------------------
+   *  Parse factor: literal | column | function | (...)
+   * ------------------------------------------------*/
   function parseFactor(): ASTNode {
     const token = peek();
-
     if (!token) {
       error('Unexpected end of expression', index - 1);
       return { type: null };
     }
 
-    // Parenthesized expression
+    // Parenthesis grouping
     if (token.key === '(') {
       consume();
       const expr = parseExpression();
@@ -1120,12 +1164,21 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
       return expr;
     }
 
-    // Function call
+    // Function
     if (SQL_FUNCTION_NAMES.includes(token.key as FunctionName)) {
       return parseFunction();
     }
 
-    // Literal or column
+    // 🔥 NEW — Treat MSSQL DATEDIFF dateparts as string literal
+    if (
+      !token.dataType &&
+      MSSQL_DATEDIFF_PARTS.includes(token.key.toLowerCase())
+    ) {
+      consume();
+      return { type: 'string', value: token.key }; // auto-string literal!
+    }
+
+    // Literal / column (existing logic)
     if (token.dataType) {
       consume();
       return { type: token.dataType, value: token.key };
@@ -1136,9 +1189,7 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
     return { type: null };
   }
 
-  // ---------------------------
-  // Parse a function call and its arguments
-  // ---------------------------
+  /** Parse Function() args */
   function parseFunction(): ASTNode {
     const funcToken = consume();
     const funcIndex = index - 1;
@@ -1149,7 +1200,7 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
       return { type: null };
     }
 
-    consume(); // consume "("
+    consume(); // '('
 
     const args: ASTNode[] = [];
     while (peek() && peek()?.key !== ')') {
@@ -1160,14 +1211,9 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
     if (peek()?.key === ')') consume();
     else error(`Missing ')' for function ${funcName}`, funcIndex);
 
-    // Validate arguments and return type
     FUNCTIONS[funcName].validate(funcName, args, funcIndex, error);
 
-    return {
-      type: FUNCTIONS[funcName].returns,
-      func: funcName,
-      args,
-    };
+    return { type: FUNCTIONS[funcName].returns, func: funcName, args };
   }
 
   // ---------------------------
@@ -1175,19 +1221,13 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
   // ---------------------------
   function parseTerm(): ASTNode {
     let node = parseFactor();
-
     while (peek() && (peek().key === '*' || peek().key === '/')) {
       const op = consume();
-      const opIndex = index - 1;
       const right = parseFactor();
-
-      if (!isNumeric(node.type) || !isNumeric(right.type)) {
-        error(`Operator '${op.key}' requires numeric operands`, opIndex);
-      }
-
+      if (!isNumeric(node.type) || !isNumeric(right.type))
+        error(`Operator '${op.key}' requires numeric operands`);
       node = { type: 'number', left: node, op: op.key, right };
     }
-
     return node;
   }
 
@@ -1196,18 +1236,15 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
   // ---------------------------
   function parseExpression(): ASTNode {
     let node = parseTerm();
-
     while (peek() && (peek().key === '+' || peek().key === '-')) {
       const op = consume();
-      const opIndex = index - 1;
+      const opIndex = index - 1; // 🔥 restore
+
       const right = parseTerm();
 
-      // numeric addition/subtraction
       if (isNumeric(node.type) && isNumeric(right.type)) {
         node = { type: 'number', left: node, op: op.key, right };
-      }
-      // string concatenation
-      else if (
+      } else if (
         node.type === 'string' &&
         right.type === 'string' &&
         op.key === '+'
@@ -1225,13 +1262,9 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
     return node;
   }
 
-  // Parse the root expression
   const ast = parseExpression();
-
-  // Check if there are extra tokens after a valid expression
-  if (index < tokens.length) {
+  if (index < tokens.length)
     error('Extra tokens after valid expression', index);
-  }
 
   return errors.length ? { valid: false, errors } : { valid: true, ast };
 }
