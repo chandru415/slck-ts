@@ -866,3 +866,503 @@ export function selectMatchingObjectsByKeys<
     selectedValues.has(item[sourceKey] as KeyType)
   );
 }
+
+/**
+ * Converts a string from camelCase, PascalCase, snake_case, kebab-case, or normal text
+ * into a human-readable Title Case string.
+ *
+ * Known acronyms can be passed optionally to preserve their capitalization (e.g., "ID", "API").
+ *
+ * @param value - The input string to format
+ * @param acronyms - Optional set or array of acronyms to preserve (e.g., ['ID', 'API'])
+ * @returns A formatted Title Case string
+ */
+export const toReadableTitle = (
+  value: string,
+  acronyms?: Set<string> | string[]
+): string => {
+  const acronymSet = acronyms
+    ? new Set(
+        Array.isArray(acronyms)
+          ? acronyms.map((a) => a.toUpperCase())
+          : [...acronyms].map((a) => a.toUpperCase())
+      )
+    : undefined;
+
+  return (
+    value
+      // Add space between camelCase or PascalCase boundaries
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      // Replace snake_case or kebab-case with spaces
+      .replace(/[_\-]+/g, ' ')
+      // Normalize spacing
+      .replace(/\s+/g, ' ')
+      // Trim surrounding whitespace
+      .trim()
+      // Split into words and process
+      .split(' ')
+      .map((word) => {
+        const upperWord = word.toUpperCase();
+        if (acronymSet?.has(upperWord)) {
+          return upperWord;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ')
+  );
+};
+
+// ---------------------------
+// Token type represents a lexical token in the expression
+// ---------------------------
+export type SQLCustomToken = {
+  key: string | any; // The string representation of the token (e.g., 'SUM', '(', '42')
+  value: string | any; // Value of the token, usually same as key
+  dataType?: string; // Optional type of the token (e.g., 'int', 'string')
+  // optional for future: number, string literals
+};
+
+export const MSSQL_DATEDIFF_PARTS = [
+  'year',
+  'quarter',
+  'month',
+  'dayofyear',
+  'day',
+  'week',
+  'weekday',
+  'hour',
+  'minute',
+  'second',
+  'millisecond',
+  'microsecond',
+];
+
+// ---------------------------
+// ASTNode represents a node in the Abstract Syntax Tree (AST)
+// ---------------------------
+export type ASTNode = {
+  type: string | null; // Type of the expression (e.g., 'number', 'string')
+  value?: string | any; // Literal value (for constants/columns)
+  left?: ASTNode; // Left child (for binary operations)
+  right?: ASTNode; // Right child (for binary operations)
+  func?: string; // Function name if this node is a function call
+  args?: ASTNode[]; // Arguments of the function
+  op?: string; // Operator if this node is a binary operation
+};
+
+// ---------------------------
+// Supported function names
+// ---------------------------
+export const SQL_FUNCTION_NAMES = [
+  'SUM',
+  'AVG',
+  'ROUND',
+  'RATIO',
+  'CONCAT',
+  'COUNT',
+  'MIN',
+  'MAX',
+  'DATEDIFF',
+] as const;
+
+// Type representing one of the supported function names
+export type FunctionName = (typeof SQL_FUNCTION_NAMES)[number];
+
+// Utility to create error objects with message and token index
+export function createError(message: string, index: number) {
+  return { message, index };
+}
+
+// ---------------------------
+// Interface for function definitions
+// ---------------------------
+interface FunctionDefinition {
+  validate: (
+    func: FunctionName,
+    args: ASTNode[],
+    index: number,
+    error: (msg: string, idx?: number) => void
+  ) => void; // Validation logic for the function arguments
+  returns: string; // Return type of the function
+}
+
+// ---------------------------
+// Function validation and return type mapping
+// ---------------------------
+export const FUNCTIONS: Record<FunctionName, FunctionDefinition> = {
+  SUM: {
+    validate: (func, args, idx, error) => {
+      args.forEach((arg) => {
+        if (!['int', 'float', 'decimal', 'number'].includes(arg.type ?? '')) {
+          error(`${func} requires numeric argument`, idx);
+        }
+      });
+    },
+    returns: 'number',
+  },
+
+  AVG: {
+    validate: (func, args, idx, error) => {
+      args.forEach((arg) => {
+        if (!['int', 'float', 'decimal', 'number'].includes(arg.type ?? '')) {
+          error(`${func} requires numeric argument`, idx);
+        }
+      });
+    },
+    returns: 'number',
+  },
+
+  ROUND: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`ROUND requires exactly 1 argument`, idx);
+      } else if (
+        !['int', 'float', 'decimal', 'number'].includes(args[0].type ?? '')
+      ) {
+        error(`ROUND requires numeric argument`, idx);
+      }
+    },
+    returns: 'number',
+  },
+
+  RATIO: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 2) {
+        error(`RATIO requires exactly 2 numeric arguments`, idx);
+      } else {
+        args.forEach((arg) => {
+          if (!['int', 'float', 'decimal', 'number'].includes(arg.type ?? '')) {
+            error(`RATIO requires numeric arguments`, idx);
+          }
+        });
+      }
+    },
+    returns: 'number',
+  },
+
+  CONCAT: {
+    validate: (func, args, idx, error) => {
+      args.forEach((arg) => {
+        if (arg.type !== 'string') {
+          error(`CONCAT requires string arguments`, idx);
+        }
+      });
+    },
+    returns: 'string',
+  },
+
+  COUNT: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`COUNT requires exactly 1 argument`, idx);
+        return;
+      }
+
+      const arg = args[0];
+      if (arg.value !== '*' && !arg.type) {
+        error(`COUNT requires a column or '*'`, idx);
+      }
+    },
+    returns: 'number',
+  },
+
+  MIN: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`MIN requires exactly 1 argument`, idx);
+        return;
+      }
+      if (!['int', 'float', 'decimal', 'number'].includes(args[0].type ?? '')) {
+        error(`MIN requires a numeric argument`, idx);
+      }
+    },
+    returns: 'number',
+  },
+
+  MAX: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 1) {
+        error(`MAX requires exactly 1 argument`, idx);
+        return;
+      }
+      if (!['int', 'float', 'decimal', 'number'].includes(args[0].type ?? '')) {
+        error(`MAX requires a numeric argument`, idx);
+      }
+    },
+    returns: 'number',
+  },
+
+  // 🔥 NEW — MSSQL DATEDIFF(datepart, startDate, endDate)
+  DATEDIFF: {
+    validate: (func, args, idx, error) => {
+      if (args.length !== 3) {
+        return error(
+          `DATEDIFF requires 3 arguments: part, startDate, endDate`,
+          idx
+        );
+      }
+
+      const datepart = (args[0].value ?? '').toLowerCase();
+      if (!MSSQL_DATEDIFF_PARTS.includes(datepart)) {
+        error(`Invalid DATEDIFF part '${args[0].value}'`, idx);
+      }
+
+      const isDateType = (a: any) =>
+        ['date', 'datetime', 'timestamp', 'DateTime'].includes(
+          (a.type ?? '').toString()
+        );
+
+      if (!isDateType(args[1]) || !isDateType(args[2])) {
+        error(`DATEDIFF requires start & end as DATE/DATETIME`, idx);
+      }
+    },
+    returns: 'number',
+  },
+};
+
+// ---------------------------
+// Helper to check if a type is numeric
+// ---------------------------
+export const isNumeric = (type?: string | null): boolean =>
+  ['int', 'float', 'decimal', 'number'].includes(type || '');
+
+// ---------------------------
+// Main parser function for custom expressions
+// ---------------------------
+export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
+  let index = 0;
+  const errors: { message: string; index: number }[] = [];
+
+  const peek = () => tokens[index];
+  const consume = () => tokens[index++];
+  const error = (message: string, idx: number = index) =>
+    errors.push({ message, index: idx });
+
+  /** -------------------------------------------------
+   *  Parse factor: literal | column | function | (...)
+   * ------------------------------------------------*/
+  function parseFactor(): ASTNode {
+    const token = peek();
+    if (!token) {
+      error('Unexpected end of expression', index - 1);
+      return { type: null };
+    }
+
+    // Parenthesis grouping
+    if (token.key === '(') {
+      consume();
+      const expr = parseExpression();
+      if (peek()?.key === ')') consume();
+      else error("Missing closing ')'", index);
+      return expr;
+    }
+
+    // Function
+    if (SQL_FUNCTION_NAMES.includes(token.key as FunctionName)) {
+      return parseFunction();
+    }
+
+    // 🔥 NEW — Treat MSSQL DATEDIFF dateparts as string literal
+    if (
+      !token.dataType &&
+      MSSQL_DATEDIFF_PARTS.includes(token.key.toLowerCase())
+    ) {
+      consume();
+      return { type: 'string', value: token.key }; // auto-string literal!
+    }
+
+    // Literal / column (existing logic)
+    if (token.dataType) {
+      consume();
+      return { type: token.dataType, value: token.key };
+    }
+
+    error(`Unexpected token '${token.key}'`, index);
+    consume();
+    return { type: null };
+  }
+
+  /** Parse Function() args */
+  function parseFunction(): ASTNode {
+    const funcToken = consume();
+    const funcIndex = index - 1;
+    const funcName = funcToken.key as FunctionName;
+
+    if (peek()?.key !== '(') {
+      error(`Function ${funcName} must be followed by '('`, funcIndex);
+      return { type: null };
+    }
+
+    consume(); // '('
+
+    const args: ASTNode[] = [];
+    while (peek() && peek()?.key !== ')') {
+      args.push(parseExpression());
+      if (peek()?.key === ',') consume();
+    }
+
+    if (peek()?.key === ')') consume();
+    else error(`Missing ')' for function ${funcName}`, funcIndex);
+
+    FUNCTIONS[funcName].validate(funcName, args, funcIndex, error);
+
+    return { type: FUNCTIONS[funcName].returns, func: funcName, args };
+  }
+
+  // ---------------------------
+  // Parse term: factor (* /) factor
+  // ---------------------------
+  function parseTerm(): ASTNode {
+    let node = parseFactor();
+    while (peek() && (peek().key === '*' || peek().key === '/')) {
+      const op = consume();
+      const right = parseFactor();
+      if (!isNumeric(node.type) || !isNumeric(right.type))
+        error(`Operator '${op.key}' requires numeric operands`);
+      node = { type: 'number', left: node, op: op.key, right };
+    }
+    return node;
+  }
+
+  // ---------------------------
+  // Parse expression: term (+ -) term
+  // ---------------------------
+  function parseExpression(): ASTNode {
+    let node = parseTerm();
+    while (peek() && (peek().key === '+' || peek().key === '-')) {
+      const op = consume();
+      const opIndex = index - 1; // 🔥 restore
+
+      const right = parseTerm();
+
+      if (isNumeric(node.type) && isNumeric(right.type)) {
+        node = { type: 'number', left: node, op: op.key, right };
+      } else if (
+        node.type === 'string' &&
+        right.type === 'string' &&
+        op.key === '+'
+      ) {
+        node = { type: 'string', left: node, op: op.key, right };
+      } else {
+        error(
+          `Operator '${op.key}' type mismatch between ${node.type} and ${right.type}`,
+          opIndex
+        );
+        node = { type: null, left: node, op: op.key, right };
+      }
+    }
+
+    return node;
+  }
+
+  const ast = parseExpression();
+  if (index < tokens.length)
+    error('Extra tokens after valid expression', index);
+
+  return errors.length ? { valid: false, errors } : { valid: true, ast };
+}
+
+export const buildExpressionTokenFromPlain = (raw: any) => {
+  if (typeof raw === 'object' && 'key' in raw && 'value' in raw) {
+    return raw;
+  }
+
+  if (typeof raw === 'number') {
+    return { key: raw, value: raw, dataType: 'number' };
+  }
+
+  if (typeof raw === 'string') {
+    const original = raw;
+
+    // CASE 1: Boolean
+    if (['true', 'false'].includes(original.toLowerCase())) {
+      return {
+        key: original === 'true',
+        value: original === 'true',
+        dataType: 'boolean',
+      };
+    }
+
+    // CASE 2: Numeric
+    if (original.trim() !== '' && !isNaN(Number(original))) {
+      return {
+        key: Number(original),
+        value: Number(original),
+        dataType: 'number',
+      };
+    }
+
+    // CASE 3: DATEDIFF part → do NOT quote it  🔥
+    if (MSSQL_DATEDIFF_PARTS.includes(original.toLowerCase())) {
+      return { key: original, value: original, dataType: 'string' };
+    }
+
+    // CASE 4: Normal strings → keep quote behavior
+    return {
+      key: `'${original.replace(/'/g, "''")}'`,
+      value: original,
+      dataType: 'string',
+    };
+  }
+
+  return { key: String(raw), value: raw, dataType: 'undefined' };
+};
+
+export function evaluateReturnTypeFromTokens(
+  tokens: SQLCustomToken[]
+): string | null {
+  if (!tokens || tokens.length === 0) return null;
+
+  const firstToken = tokens[0];
+
+  // Check if first token is a function
+  if (firstToken.key && typeof firstToken.key === 'string') {
+    const funcName = firstToken.key as FunctionName;
+    if (FUNCTIONS[funcName]) {
+      return FUNCTIONS[funcName].returns;
+    }
+  }
+
+  // If not a function, return the type of the first token (literal or column)
+  if ('dataType' in firstToken) return firstToken.dataType ?? null;
+
+  return null;
+}
+
+/** Is token a function? */
+export function isSQLFunctionToken(token: any, functionList: any[]): boolean {
+  return functionList.some((fn: { key: any; }) => fn.key === token.key);
+}
+
+/** Is token a parenthesis? */
+export function isParen(token: { dataType: undefined; key: string; }): boolean {
+  return isNullOrUndefined(token?.dataType) &&
+         (token.key === '(' || token.key === ')');
+}
+
+/** Is "(" ? */
+export function isOpenParen(token: { dataType: undefined; key: string; }): boolean {
+  console.log(token?.dataType , isNullOrUndefined(token?.dataType));
+  
+  return isNullOrUndefined(token?.dataType) && token.key === '(';
+}
+
+/** Is ")" ? */
+export function isCloseParen(token: { dataType: undefined; key: string; }): boolean {
+  return isNullOrUndefined(token?.dataType) && token.key === ')';
+}
+
+/** Finds the matching closing parenthesis index */
+export function findMatchingOpenCloseParen(tokens: string | any[], startIndex: number): number {
+  let depth = 0;
+
+  for (let i = startIndex; i < tokens.length; i++) {
+    if (isOpenParen(tokens[i])) depth++;
+    if (isCloseParen(tokens[i])) depth--;
+
+    if (depth === 0) return i;
+  }
+
+  return startIndex; // failsafe (should never happen if valid)
+}
+
