@@ -1261,3 +1261,108 @@ export function parseSqlCustomExpressionTokens(tokens: SQLCustomToken[]) {
 
   return errors.length ? { valid: false, errors } : { valid: true, ast };
 }
+
+export const buildExpressionTokenFromPlain = (raw: any) => {
+  if (typeof raw === 'object' && 'key' in raw && 'value' in raw) {
+    return raw;
+  }
+
+  if (typeof raw === 'number') {
+    return { key: raw, value: raw, dataType: 'number' };
+  }
+
+  if (typeof raw === 'string') {
+    const original = raw;
+
+    // CASE 1: Boolean
+    if (['true', 'false'].includes(original.toLowerCase())) {
+      return {
+        key: original === 'true',
+        value: original === 'true',
+        dataType: 'boolean',
+      };
+    }
+
+    // CASE 2: Numeric
+    if (original.trim() !== '' && !isNaN(Number(original))) {
+      return {
+        key: Number(original),
+        value: Number(original),
+        dataType: 'number',
+      };
+    }
+
+    // CASE 3: DATEDIFF part → do NOT quote it  🔥
+    if (MSSQL_DATEDIFF_PARTS.includes(original.toLowerCase())) {
+      return { key: original, value: original, dataType: 'string' };
+    }
+
+    // CASE 4: Normal strings → keep quote behavior
+    return {
+      key: `'${original.replace(/'/g, "''")}'`,
+      value: original,
+      dataType: 'string',
+    };
+  }
+
+  return { key: String(raw), value: raw, dataType: 'undefined' };
+};
+
+export function evaluateReturnTypeFromTokens(
+  tokens: SQLCustomToken[]
+): string | null {
+  if (!tokens || tokens.length === 0) return null;
+
+  const firstToken = tokens[0];
+
+  // Check if first token is a function
+  if (firstToken.key && typeof firstToken.key === 'string') {
+    const funcName = firstToken.key as FunctionName;
+    if (FUNCTIONS[funcName]) {
+      return FUNCTIONS[funcName].returns;
+    }
+  }
+
+  // If not a function, return the type of the first token (literal or column)
+  if ('dataType' in firstToken) return firstToken.dataType ?? null;
+
+  return null;
+}
+
+/** Is token a function? */
+export function isSQLFunctionToken(token: any, functionList: any[]): boolean {
+  return functionList.some((fn: { key: any; }) => fn.key === token.key);
+}
+
+/** Is token a parenthesis? */
+export function isParen(token: { dataType: undefined; key: string; }): boolean {
+  return isNullOrUndefined(token?.dataType) &&
+         (token.key === '(' || token.key === ')');
+}
+
+/** Is "(" ? */
+export function isOpenParen(token: { dataType: undefined; key: string; }): boolean {
+  console.log(token?.dataType , isNullOrUndefined(token?.dataType));
+  
+  return isNullOrUndefined(token?.dataType) && token.key === '(';
+}
+
+/** Is ")" ? */
+export function isCloseParen(token: { dataType: undefined; key: string; }): boolean {
+  return isNullOrUndefined(token?.dataType) && token.key === ')';
+}
+
+/** Finds the matching closing parenthesis index */
+export function findMatchingOpenCloseParen(tokens: string | any[], startIndex: number): number {
+  let depth = 0;
+
+  for (let i = startIndex; i < tokens.length; i++) {
+    if (isOpenParen(tokens[i])) depth++;
+    if (isCloseParen(tokens[i])) depth--;
+
+    if (depth === 0) return i;
+  }
+
+  return startIndex; // failsafe (should never happen if valid)
+}
+
